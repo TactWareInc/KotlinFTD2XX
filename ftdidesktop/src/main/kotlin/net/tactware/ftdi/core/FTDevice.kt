@@ -12,9 +12,7 @@ import net.tactware.ftdi.exception.FTD2XXException
 import net.tactware.ftdi.jna.FTD2XX
 import java.io.Closeable
 
-/**
- * Kotlin implementation of FTDevice with coroutines and SharedFlow support.
- */
+
 class FTDevice private constructor(
     private val ftHandle: Pointer,
     val deviceIndex: Int,
@@ -402,19 +400,6 @@ class FTDevice private constructor(
         if (!closed) {
             ensureFTStatus(ftd2xx.FT_Close(ftHandle))
             closed = true
-        }
-    }
-    
-    /**
-     * Ensure FT_STATUS is FT_OK, otherwise throw an exception.
-     *
-     * @param status FT_STATUS value
-     * @throws FTD2XXException If status is not FT_OK
-     */
-    private fun ensureFTStatus(status: Int) {
-        if (status != FT_STATUS.FT_OK.value) {
-            val ftStatus = FT_STATUS.fromValue(status) ?: FT_STATUS.FT_OTHER_ERROR
-            throw FTD2XXException(ftStatus)
         }
     }
 }
