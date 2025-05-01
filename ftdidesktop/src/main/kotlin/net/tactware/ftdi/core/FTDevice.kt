@@ -1,9 +1,11 @@
 package net.tactware.ftdi.core
 
+import com.sun.jna.Memory
 import com.sun.jna.Pointer
 import com.sun.jna.ptr.ByteByReference
 import com.sun.jna.ptr.IntByReference
 import com.sun.jna.ptr.PointerByReference
+
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -11,7 +13,11 @@ import net.tactware.ftdi.enums.*
 import net.tactware.ftdi.exception.FTD2XXException
 import net.tactware.ftdi.jna.FTD2XX
 import java.io.Closeable
+import java.nio.charset.Charset
 
+fun memoryPointerToString(memory: Memory, charset: Charset = Charset.defaultCharset()): String {
+    return memory.getString(0, charset.name())
+}
 
 class FTDevice private constructor(
     private val ftHandle: Pointer,
@@ -50,15 +56,15 @@ class FTDevice private constructor(
             if (index >= numDevs.value) {
                 throw FTD2XXException(FT_STATUS.FT_DEVICE_NOT_FOUND, "Device index out of range: $index")
             }
-            
+
             val flags = IntByReference()
             val type = IntByReference()
             val id = IntByReference()
             val locId = IntByReference()
-            val serialNumberBuffer = Pointer.NULL
-            val descriptionBuffer = Pointer.NULL
+            val serialNumberBuffer = Memory(16+1)
+            val descriptionBuffer = Memory(64+1)
             val ftHandleRef = PointerByReference()
-            
+
             ensureFTStatus(ftd2xx.FT_GetDeviceInfoDetail(
                 index, flags, type, id, locId, serialNumberBuffer, descriptionBuffer, ftHandleRef
             ))
@@ -68,8 +74,8 @@ class FTDevice private constructor(
             ensureFTStatus(ftd2xx.FT_Open(index, pftHandle))
             
             // Get serial number and description
-            val serialNumber = "Unknown" // In a real implementation, we would get this from the device
-            val description = "Unknown" // In a real implementation, we would get this from the device
+            val serialNumber = memoryPointerToString(serialNumberBuffer)
+            val description = memoryPointerToString(descriptionBuffer)
             
             return FTDevice(pftHandle.value, index, serialNumber, description)
         }
@@ -82,42 +88,45 @@ class FTDevice private constructor(
          * @throws FTD2XXException If device cannot be opened
          */
         @JvmStatic
-        fun openBySerialNumber(serialNumber: String): FTDevice {
+        fun openBySerialNumber(serialNumberToOpen: String): FTDevice {
             val ftd2xx = FTD2XX.INSTANCE
             val pftHandle = PointerByReference()
             
-            ensureFTStatus(ftd2xx.FT_OpenEx(serialNumber, 1, pftHandle))
+            ensureFTStatus(ftd2xx.FT_OpenEx(serialNumberToOpen, 1, pftHandle))
             
             // Find the device index
             val numDevs = IntByReference()
             ensureFTStatus(ftd2xx.FT_CreateDeviceInfoList(numDevs))
             
             var deviceIndex = -1
+            var serialNumber = String()
+            var description = String()
+
             for (i in 0 until numDevs.value) {
                 val flags = IntByReference()
                 val type = IntByReference()
                 val id = IntByReference()
                 val locId = IntByReference()
-                val serialNumberBuffer = Pointer.NULL
-                val descriptionBuffer = Pointer.NULL
+                val serialNumberBuffer = Memory(16+1)
+                val descriptionBuffer = Memory(64+1)
                 val ftHandleRef = PointerByReference()
-                
                 ensureFTStatus(ftd2xx.FT_GetDeviceInfoDetail(
                     i, flags, type, id, locId, serialNumberBuffer, descriptionBuffer, ftHandleRef
                 ))
-                
-                // In a real implementation, we would compare the serial numbers
-                // For now, we'll just use the first device
-                deviceIndex = i
+
+                serialNumber = memoryPointerToString(serialNumberBuffer)
+                description = memoryPointerToString(descriptionBuffer)
+
+                if(serialNumberToOpen.equals(serialNumber))
+                    deviceIndex = i
                 break
             }
-            
+
             if (deviceIndex == -1) {
                 throw FTD2XXException(FT_STATUS.FT_DEVICE_NOT_FOUND, "Device with serial number $serialNumber not found")
             }
-            
-            val description = "Unknown" // In a real implementation, we would get this from the device
-            
+
+            // Get serial number and description
             return FTDevice(pftHandle.value, deviceIndex, serialNumber, description)
         }
         

@@ -21,14 +21,14 @@ class Example {
         @JvmStatic
         fun main(args: Array<String>) {
             // Create a coroutine scope
-            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
             
             try {
                 println("Looking for FTDI devices...")
                 
                 // Open the first available device
                 val device = FTDIDevice.openByIndex(0)
-                println("Device opened: ${device.javaClass.name}")
+                println("Device opened: ${device.javaClass.name} ${device.getSerialNumber()} ${device.getDescription()}")
                 
                 // Subscribe to data flow
                 device.dataFlow.onEach { data ->
