@@ -8,6 +8,7 @@ plugins {
 dependencies {
     implementation(libs.kotlinx.atomicfu)
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.swing)
     implementation(libs.jna)
 }
 

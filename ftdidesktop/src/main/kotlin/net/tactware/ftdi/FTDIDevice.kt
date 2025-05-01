@@ -67,6 +67,20 @@ class FTDIDevice private constructor(
             return FTDIDevice(device, manager)
         }
     }
+
+    /**
+     * Return the device serial number
+     */
+    fun getSerialNumber() : String {
+        return device.serialNumber
+    }
+
+    /**
+     * Return the device description
+     */
+    fun getDescription() : String {
+        return device.description
+    }
     
     /**
      * Start continuous reading from the device.
