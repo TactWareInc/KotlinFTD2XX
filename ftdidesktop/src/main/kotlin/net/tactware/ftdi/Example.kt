@@ -9,6 +9,7 @@ import kotlinx.coroutines.launch
 import net.tactware.ftdi.enums.BitModes
 import net.tactware.ftdi.enums.FlowControl
 import net.tactware.ftdi.enums.Parity
+import net.tactware.ftdi.enums.Purge
 import net.tactware.ftdi.enums.StopBits
 import net.tactware.ftdi.enums.WordLength
 
@@ -27,7 +28,32 @@ class Example {
                 println("Looking for FTDI devices...")
                 
                 // Open the first available device
-                val device = FTDIDevice.openByIndex(0)
+                var device = FTDIDevice.openByIndex(0)
+                println("Device opened: ${device.javaClass.name} ${device.getSerialNumber()} ${device.getDescription()}")
+
+                //Test out functions
+                var open = device.isOpen()
+                var mode = device.getBitMode()
+                var flushed = device.flushbuffer()
+                val bits:Byte = 0x00
+                device.setBitMode(bits,BitModes.RESET)
+                mode = device.getBitMode()
+                device.setBitMode(bits,BitModes.ASYNC_BIT_BANG)
+                device.setGPIO(0x01)
+                val gpio = device.getGPIO()
+                mode = device.getBitMode()
+                device.setBitMode(mask = bits, mode = BitModes.MPSSE)
+                mode = device.getBitMode()
+                flushed = device.flushbuffer()
+                device.purge(Purge.RX_TX)
+                device.hardPurge()
+                device.reset()
+                mode = device.getBitMode()
+                device.close()
+                open = device.isOpen()
+
+                // Repen the first available device
+                device = FTDIDevice.openByIndex(0)
                 println("Device opened: ${device.javaClass.name} ${device.getSerialNumber()} ${device.getDescription()}")
                 
                 // Subscribe to data flow

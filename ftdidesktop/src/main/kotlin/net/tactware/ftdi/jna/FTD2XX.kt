@@ -208,6 +208,14 @@ interface FTD2XX : Library {
     fun FT_Purge(ftHandle: Pointer, mask: Int): Int
 
     /**
+     * This function sends a reset command to the device.
+     *
+     * @param ftHandle Handle of the device.
+     * @return FT_STATUS: FT_OK if successful, otherwise the return value is an FT error code.
+     */
+    fun FT_ResetDevice(ftHandle: Pointer): Int
+
+    /**
      * Set the BREAK condition for the device.
      *
      * @param ftHandle Handle of the device.
