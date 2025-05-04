@@ -24,10 +24,11 @@ import net.tactware.ftdi.exception.FTD2XXException
  */
 class FTDIDevice private constructor(
     private val device: FTDevice,
-    private val deviceManager: FTDeviceManager
+    private val deviceManager: FTDeviceManager,
+    private var bitMode: BitModes = BitModes.RESET
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    
+
     // Expose the SharedFlows from the device manager
     val dataFlow: SharedFlow<ByteArray> = deviceManager.dataFlow
     val statusFlow: SharedFlow<DeviceStatusUpdate> = deviceManager.statusFlow
@@ -164,7 +165,47 @@ class FTDIDevice private constructor(
             }
         }
     }
-    
+
+    /**
+     *  Synchronize the MPSSE by sending a bogus opcode (0xAB),
+     * The MPSSE will respond with "Bad Command" (0xFA) followed by
+     * the bogus opcode itself. Verify functionality
+     *@param Boolean true if test successful
+     */
+    fun testMPSSE():Boolean {
+        device.resetDevice()
+        device.purge(Purge.RX_TX)
+
+        //Enable internal loop-back
+        val enableInternalLoopback = 0x84.toByte()
+        var byOutputBuffer = ByteArray(100) { 0 }
+        byOutputBuffer[0] = MPSSE_MCU_CMD.LOOPBACK.CMD
+        var byInputBuffer = ByteArray(100) { 0 }
+        var dwNumBytesSent = device.write(byOutputBuffer,0,1)
+
+        //Send Bogus Command
+        byOutputBuffer[0] = MPSSE_MCU_CMD.BOGUS.CMD
+        dwNumBytesSent = device.write(byOutputBuffer,0,1)
+
+        var status: Triple<Int, Int, Int>
+        do {
+            status = device.getStatus() // Get the number of bytes in the device input buffer
+        } while (status.first == 0 && status.third == FT_STATUS.FT_OK.value) //wait for data or timeout
+
+        //Read out the data from input buffer
+        val bytesToRead = minOf(status.first, byInputBuffer.size)
+        val response = device.read(byInputBuffer, 0, bytesToRead)
+
+        //Check if Bad command and echo command are received
+        for( dwCount in 0 until minOf(bytesToRead,byInputBuffer.size-1) ) {
+            if((byInputBuffer[dwCount]==MPSSE_MCU_CMD.BAD_CMD.CMD) &&
+                (byInputBuffer[dwCount+1] == MPSSE_MCU_CMD.BOGUS.CMD)) {
+                return true
+            }
+        }
+        return false
+    }
+
     /**
      * Set the bit mode for the device.
      *
@@ -175,6 +216,7 @@ class FTDIDevice private constructor(
         scope.launch {
             try {
                 device.setBitMode(mask, mode)
+                bitMode = mode
                 _commandResponseFlow.emit(CommandResponse(
                     CommandType.SET_BIT_MODE,
                     success = true,
@@ -198,8 +240,7 @@ class FTDIDevice private constructor(
     fun setGPIO(gpio: Byte) {
         scope.launch {
             try {
-                val mode = BitModes.fromValue(device.getBitMode())
-                if(mode == BitModes.SYNC_BIT_BANG || mode == BitModes.ASYNC_BIT_BANG || mode == BitModes.CBUS_BIT_BANG) {
+                if(bitMode == BitModes.SYNC_BIT_BANG || bitMode == BitModes.ASYNC_BIT_BANG || bitMode == BitModes.CBUS_BIT_BANG) {
                     val data = ByteArray(5) { 0 }
                     data[0] = gpio
                     device.write(data)
@@ -229,18 +270,15 @@ class FTDIDevice private constructor(
      * @return gpio Bit mode mask
      */
     fun getGPIO(): Byte {
-        val data = ByteArray(5) { 0 }
-        val mode = BitModes.fromValue(device.getBitMode())
-        if(mode == BitModes.SYNC_BIT_BANG || mode == BitModes.ASYNC_BIT_BANG || mode == BitModes.CBUS_BIT_BANG) {
-            device.read(data,0,1)
+        if(bitMode == BitModes.SYNC_BIT_BANG || bitMode == BitModes.ASYNC_BIT_BANG || bitMode == BitModes.CBUS_BIT_BANG) {
+            return device.getBitMode()
         } else {
             throw FTD2XXException(FT_STATUS.FT_IO_ERROR, "Device is not in Bit Bang Mode)")
         }
-        return data[0]
     }
 
     /**
-     * Return device bit mode
+     * Return instantaneous data bus value/bit values not mode
      * @return Byte bit mode
      */
     fun getBitMode():Byte {
@@ -286,6 +324,7 @@ class FTDIDevice private constructor(
         scope.launch {
             try {
                 device.resetDevice()
+                bitMode = BitModes.RESET
                 _commandResponseFlow.emit(CommandResponse(
                     CommandType.RESET,
                     success = true,
@@ -308,9 +347,8 @@ class FTDIDevice private constructor(
      * @return succes
      */
     fun flushbuffer(): Boolean {
-        val mode = BitModes.fromValue(device.getBitMode())
-        if( mode == BitModes.MPSSE || mode == BitModes.MCU_HOST_BUS_EMULATION) {
-            val FTDI_MPSSE_COMMAND_FLUSH_BUFFER = 0x87.toByte()
+        if( bitMode == BitModes.MPSSE || bitMode == BitModes.MCU_HOST_BUS_EMULATION) {
+            val FTDI_MPSSE_COMMAND_FLUSH_BUFFER = 0x87.toByte() //Send Immediate
             val data = ByteArray(5) { 0 }
             data[0] = FTDI_MPSSE_COMMAND_FLUSH_BUFFER
             device.write(data)
@@ -354,6 +392,27 @@ enum class CommandType {
     GET_GPIO,
     PURGE,
     RESET
+}
+
+enum class MPSSE_MCU_CMD(val CMD: Byte) {
+    SET_DATA_BITS_LOW_BYTE(0x80.toByte()),
+    READ_DATA_BITS_LOW_BYTE(0x81.toByte()),
+    SET_DATA_BITS_HIGH_BYTE(0x82.toByte()),
+    READ_DATA_BITS_HIGH_BYTE(0x83.toByte()),
+    LOOPBACK(0x84.toByte()),
+    DISCONNECT_TDI_TDO_LOOPBACK(0x85.toByte()),
+    CLOCK_DIVISOR(0X86.toByte()),
+    SEND_IMMEDIATE(0X87.toByte()),
+    WAIT_ON_IO_HIGH(0x88.toByte()),
+    WAIT_ON_IO_LOW(0x89.toByte()),
+    READ_SHORT_ADDRESS(0x90.toByte()),
+    READ_EXTENDED_ADDRESS(0x91.toByte()),
+    WRITE_SHORT_ADDRESS(0x92.toByte()),
+    WRITE_EXTENDED_ADDRESS(0x93.toByte()),
+
+    BOGUS(0xAA.toByte()), //Invalid command for testing
+
+    BAD_CMD(0xFA.toByte()) //MPSEE respone when a bad command is Sent
 }
 
 /**

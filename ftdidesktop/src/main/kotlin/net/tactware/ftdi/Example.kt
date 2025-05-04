@@ -32,25 +32,44 @@ class Example {
                 println("Device opened: ${device.javaClass.name} ${device.getSerialNumber()} ${device.getDescription()}")
 
                 //Test out functions
-                var open = device.isOpen()
-                var mode = device.getBitMode()
-                var flushed = device.flushbuffer()
-                val bits:Byte = 0x00
-                device.setBitMode(bits,BitModes.RESET)
-                mode = device.getBitMode()
-                device.setBitMode(bits,BitModes.ASYNC_BIT_BANG)
-                device.setGPIO(0x01)
-                val gpio = device.getGPIO()
-                mode = device.getBitMode()
-                device.setBitMode(mask = bits, mode = BitModes.MPSSE)
-                mode = device.getBitMode()
-                flushed = device.flushbuffer()
-                device.purge(Purge.RX_TX)
-                device.hardPurge()
+                if(device.isOpen())
+                    println("Device is open.")
+
+                //Test Bit Bang GPIO
+                val outPuts = ByteArray(1) { 0x7B.toByte() }
+                device.setBitMode(0xFF.toByte(),BitModes.ASYNC_BIT_BANG) //0xFF for out pins as outputs
+                device.write(outPuts) //Bits are set at default interal baud rate
+                Thread.sleep(100)
+                var bitReg = device.getBitMode()
+                if(bitReg == outPuts[0])
+                    println("Bit Bang test complete")
+                else
+                    println("Bit Bang test fail. Maybe do to your physical hardware connection")
+
+                //Rest Device
                 device.reset()
-                mode = device.getBitMode()
+                device.purge(Purge.RX_TX)
+                device.setBitMode(0x00,BitModes.RESET)
+
+                //Test MPSSE Mode
+                device.setBitMode(0x00, mode = BitModes.MPSSE)
+
+                if(device.testMPSSE()) {
+                    println("MPSSE test passed.")
+                } else {
+                    println("MPSSE test fail, device may not support it.")
+                }
+
+
+                device.purge(Purge.RX_TX)
+
+                device.hardPurge()
+
+                device.reset()
+
                 device.close()
-                open = device.isOpen()
+                if(!device.isOpen())
+                    println("Device is closed.")
 
                 // Repen the first available device
                 device = FTDIDevice.openByIndex(0)

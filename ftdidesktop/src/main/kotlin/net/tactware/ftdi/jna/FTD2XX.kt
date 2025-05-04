@@ -260,7 +260,7 @@ interface FTD2XX : Library {
     fun FT_SetBitMode(ftHandle: Pointer, ucMask: Byte, ucMode: Byte): Int
 
     /**
-     * Gets the instantaneous value of the data bus.
+     * Gets the instantaneous value of the data bus/pins.
      *
      * @param ftHandle Handle of the device.
      * @param pucMode Pointer to unsigned char to store the instantaneous data bus value.
