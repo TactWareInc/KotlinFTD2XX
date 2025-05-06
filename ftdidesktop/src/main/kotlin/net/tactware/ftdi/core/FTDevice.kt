@@ -83,7 +83,7 @@ class FTDevice private constructor(
         /**
          * Open a device by serial number.
          *
-         * @param serialNumber Serial number of the device to open
+         * @param serialNumberToOpen Serial number of the device to open
          * @return FTDevice instance
          * @throws FTD2XXException If device cannot be opened
          */
@@ -266,7 +266,51 @@ class FTDevice private constructor(
     fun purge(purge: Purge) {
         ensureFTStatus(ftd2xx.FT_Purge(ftHandle, purge.value))
     }
-    
+
+    /**
+     * This function sends a reset command to the device.
+     * @throws FTD2XXException If operation fails
+     */
+    fun resetDevice() {
+        ensureFTStatus(ftd2xx.FT_ResetDevice(ftHandle))
+    }
+
+    /**
+     * This function retunrs whether the device is open
+     * @return Boolean true if open
+     */
+    fun isOpen(): Boolean {
+        val ftd2xx = FTD2XX.INSTANCE
+
+        // Find the device index
+        val numDevs = IntByReference()
+        ensureFTStatus(ftd2xx.FT_CreateDeviceInfoList(numDevs))
+
+        for (i in 0 until numDevs.value) {
+            val flags = IntByReference()
+            val type = IntByReference()
+            val id = IntByReference()
+            val locId = IntByReference()
+            val serialNumberBuffer = Memory(16+1)
+            val descriptionBuffer = Memory(64+1)
+            val ftHandleRef = PointerByReference()
+            ensureFTStatus(ftd2xx.FT_GetDeviceInfoDetail(
+                i, flags, type, id, locId, serialNumberBuffer, descriptionBuffer, ftHandleRef
+            ))
+
+            if(deviceIndex == i) {
+                //Device found, check the flags
+                //Bit 0 (least significant bit) of this number indicates if the port is open (1) or closed (0). Bit 1
+                //indicates if the device is enumerated as a high-speed USB device (2) or a full-speed USB device (0). The
+                //remaining bits (2 - 31) are reserved
+                if(flags.value and 0x01 == 0x01)
+                    return true
+                break
+            }
+        }
+        return false
+    }
+
     /**
      * Set the BREAK condition for the device.
      *
@@ -295,7 +339,7 @@ class FTDevice private constructor(
      * @throws FTD2XXException If operation fails
      */
     fun write(bytes: ByteArray, offset: Int = 0, length: Int = bytes.size - offset): Int {
-        val memory = com.sun.jna.Memory(length.toLong())
+        val memory = Memory(length.toLong())
         memory.write(0, bytes, offset, length)
         val wrote = IntByReference()
         ensureFTStatus(ftd2xx.FT_Write(ftHandle, memory, length, wrote))
@@ -312,7 +356,7 @@ class FTDevice private constructor(
      * @throws FTD2XXException If operation fails
      */
     fun read(bytes: ByteArray, offset: Int = 0, length: Int = bytes.size - offset): Int {
-        val memory = com.sun.jna.Memory(length.toLong())
+        val memory = Memory(length.toLong())
         val read = IntByReference()
         ensureFTStatus(ftd2xx.FT_Read(ftHandle, memory, length, read))
         memory.read(0, bytes, offset, read.value)
