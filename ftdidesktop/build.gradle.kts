@@ -3,6 +3,8 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.shadow)
+    `maven-publish`
 }
 
 dependencies {
