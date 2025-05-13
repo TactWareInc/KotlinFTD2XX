@@ -3,9 +3,7 @@ package net.tactware.ftdi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import net.tactware.ftdi.core.FTDevice
 import net.tactware.ftdi.core.FTDeviceManager
@@ -34,11 +32,10 @@ class FTDIDevice private constructor(
     val statusFlow: SharedFlow<DeviceStatusUpdate> = deviceManager.statusFlow
     
     // Create a separate command response flow for request-response patterns
-    private val _commandResponseFlow = MutableSharedFlow<CommandResponse>(
-        replay = 0,
-        extraBufferCapacity = 20
+    private val _commandResponseFlow = MutableStateFlow<CommandResponse?>(
+        null
     )
-    val commandResponseFlow: SharedFlow<CommandResponse> = _commandResponseFlow.asSharedFlow()
+    val commandResponseFlow = _commandResponseFlow.asStateFlow()
     
     companion object {
         /**
@@ -179,7 +176,7 @@ class FTDIDevice private constructor(
         //Enable internal loop-back
         val enableInternalLoopback = 0x84.toByte()
         var byOutputBuffer = ByteArray(100) { 0 }
-        byOutputBuffer[0] = MPSSE_MCU_CMD.LOOPBACK.CMD
+        byOutputBuffer[0] = MPSSE_MCU_CMD.ENABLE_LOOPBACK.CMD
         var byInputBuffer = ByteArray(100) { 0 }
         var dwNumBytesSent = device.write(byOutputBuffer,0,1)
 
@@ -348,9 +345,8 @@ class FTDIDevice private constructor(
      */
     fun flushbuffer(): Boolean {
         if( bitMode == BitModes.MPSSE || bitMode == BitModes.MCU_HOST_BUS_EMULATION) {
-            val FTDI_MPSSE_COMMAND_FLUSH_BUFFER = 0x87.toByte() //Send Immediate
             val data = ByteArray(5) { 0 }
-            data[0] = FTDI_MPSSE_COMMAND_FLUSH_BUFFER
+            data[0] = MPSSE_MCU_CMD.SEND_IMMEDIATE.CMD
             device.write(data)
             return true
         }
@@ -395,24 +391,47 @@ enum class CommandType {
 }
 
 enum class MPSSE_MCU_CMD(val CMD: Byte) {
+    //Reference FTDI AN_233_Java_D2xx_for_Android_API_User_Manual.pdf
+    //Reference FTDI AN_108_Command_Processor_for_MPSSE_and_MCU_Host_Bus_Emulation_Modes.pdf
+
+    //Read Bytes Falling Edge LSB First
+    READ_BYTES_RISING_EDGE(0x2B.toByte()),
+    READ_BYTES_FALLING_EDGE(0x2C.toByte()),
+
+    //Read/Write GPIO
     SET_DATA_BITS_LOW_BYTE(0x80.toByte()),
     READ_DATA_BITS_LOW_BYTE(0x81.toByte()),
     SET_DATA_BITS_HIGH_BYTE(0x82.toByte()),
     READ_DATA_BITS_HIGH_BYTE(0x83.toByte()),
-    LOOPBACK(0x84.toByte()),
-    DISCONNECT_TDI_TDO_LOOPBACK(0x85.toByte()),
-    CLOCK_DIVISOR(0X86.toByte()),
-    SEND_IMMEDIATE(0X87.toByte()),
+
+    //Enable/Disable TDI/TDO Loopback
+    ENABLE_LOOPBACK(0x84.toByte()),
+    DISABLE_LOOPBACK(0x85.toByte()),
+
+
+    CLOCK_DIVISOR(0X86.toByte()), //Set Clock Divisor
+    SEND_IMMEDIATE(0X87.toByte()), //This will make the chip flush its buffer back to the PC.
+
     WAIT_ON_IO_HIGH(0x88.toByte()),
     WAIT_ON_IO_LOW(0x89.toByte()),
+
+    CMD_60MHZ_CLOCK(0x8A.toByte()), //Disables the clk divide by 5 to allow for a 60MHz master clock.
+    CMD_12MHZ_CLOCK(0x8B.toByte()), //Enables the clk divide by 5 to allow for a 12MHz master clock.
+    ENABLE_3_PHASE_CLOCK(0x8C.toByte()),//Enables 3 phase data clocking. Used by I2C interfaces to allow data on both clock edges.
+    DISABLE_3_PHASE_CLOCK(0x8D.toByte()), //Disables 3 phase data clocking.
+
     READ_SHORT_ADDRESS(0x90.toByte()),
     READ_EXTENDED_ADDRESS(0x91.toByte()),
     WRITE_SHORT_ADDRESS(0x92.toByte()),
     WRITE_EXTENDED_ADDRESS(0x93.toByte()),
+    ENABLE_ADAPTIVE_CLOCK(0x96.toByte()),
+    DISABLE_ADAPTIVE_CLOCK(0x97.toByte()),
 
     BOGUS(0xAA.toByte()), //Invalid command for testing
+    BAD_CMD(0xFA.toByte()), //MPSEE response when a bad command is Sent
 
-    BAD_CMD(0xFA.toByte()) //MPSEE respone when a bad command is Sent
+    FTDI_BYTE_MASK_INPUTS(0x00.toByte()),
+    FTDI_BYTE_MASK_OUTPUTS(0xFF.toByte()),
 }
 
 /**

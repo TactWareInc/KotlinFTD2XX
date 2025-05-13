@@ -46,7 +46,7 @@ class Example {
                 else
                     println("Bit Bang test fail. Maybe do to your physical hardware connection")
 
-                //Rest Device
+                //Reset Device
                 device.reset()
                 device.purge(Purge.RX_TX)
                 device.setBitMode(0x00,BitModes.RESET)
