@@ -30,13 +30,13 @@ class FTDIDevice private constructor(
     // Expose the SharedFlows from the device manager
     val dataFlow: SharedFlow<ByteArray> = deviceManager.dataFlow
     val statusFlow: SharedFlow<DeviceStatusUpdate> = deviceManager.statusFlow
-    
+
     // Create a separate command response flow for request-response patterns
     private val _commandResponseFlow = MutableStateFlow<CommandResponse?>(
         null
     )
     val commandResponseFlow = _commandResponseFlow.asStateFlow()
-    
+
     companion object {
         /**
          * Open a device by index.
@@ -51,7 +51,7 @@ class FTDIDevice private constructor(
             val manager = FTDeviceManager(device)
             return FTDIDevice(device, manager)
         }
-        
+
         /**
          * Open a device by serial number.
          *
@@ -70,17 +70,17 @@ class FTDIDevice private constructor(
     /**
      * Return the device serial number
      */
-    fun getSerialNumber() : String {
+    fun getSerialNumber(): String {
         return device.serialNumber
     }
 
     /**
      * Return the device description
      */
-    fun getDescription() : String {
+    fun getDescription(): String {
         return device.description
     }
-    
+
     /**
      * Start continuous reading from the device.
      * Data will be emitted to the dataFlow.
@@ -91,14 +91,14 @@ class FTDIDevice private constructor(
     fun startReading(bufferSize: Int = 4096, pollIntervalMs: Long = 10) {
         deviceManager.startReading(bufferSize, pollIntervalMs)
     }
-    
+
     /**
      * Stop continuous reading from the device.
      */
     fun stopReading() {
         deviceManager.stopReading()
     }
-    
+
     /**
      * Configure the device with common settings.
      *
@@ -115,52 +115,51 @@ class FTDIDevice private constructor(
         parity: Parity = Parity.NONE,
         flowControl: FlowControl = FlowControl.NONE
     ) {
-        scope.launch {
-            try {
-                device.setBaudRate(baudRate)
-                device.setDataCharacteristics(dataBits, stopBits, parity)
-                device.setFlowControl(flowControl)
-                
-                _commandResponseFlow.emit(CommandResponse(
-                    CommandType.CONFIGURE,
-                    success = true,
-                    message = "Device configured successfully"
-                ))
-            } catch (e: Exception) {
-                _commandResponseFlow.emit(CommandResponse(
-                    CommandType.CONFIGURE,
-                    success = false,
-                    message = "Configuration failed: ${e.message}",
-                    error = e
-                ))
-            }
+        try {
+            device.setBaudRate(baudRate)
+            device.setDataCharacteristics(dataBits, stopBits, parity)
+            device.setFlowControl(flowControl)
+
+            _commandResponseFlow.value = CommandResponse(
+                CommandType.CONFIGURE,
+                success = true,
+                message = "Device configured successfully"
+            )
+        } catch (e: Exception) {
+            _commandResponseFlow.value = CommandResponse(
+                CommandType.CONFIGURE,
+                success = false,
+                message = "Configuration failed: ${e.message}",
+                error = e
+            )
         }
     }
-    
+
     /**
      * Write data to the device.
      *
      * @param data The data to write
      */
-    fun write(data: ByteArray) {
-        scope.launch {
-            try {
-                val bytesWritten = device.write(data)
-                _commandResponseFlow.emit(CommandResponse(
-                    CommandType.WRITE,
-                    success = true,
-                    message = "Wrote $bytesWritten bytes",
-                    data = bytesWritten
-                ))
-            } catch (e: Exception) {
-                _commandResponseFlow.emit(CommandResponse(
-                    CommandType.WRITE,
-                    success = false,
-                    message = "Write failed: ${e.message}",
-                    error = e
-                ))
-            }
+    fun write(data: ByteArray): Int {
+        return try {
+            val bytesWritten = device.write(data)
+            _commandResponseFlow.value = (CommandResponse(
+                CommandType.WRITE,
+                success = true,
+                message = "Wrote $bytesWritten bytes",
+                data = bytesWritten
+            ))
+            bytesWritten
+        } catch (e: Exception) {
+            _commandResponseFlow.value = (CommandResponse(
+                CommandType.WRITE,
+                success = false,
+                message = "Write failed: ${e.message}",
+                error = e
+            ))
+            -1
         }
+
     }
 
     /**
@@ -169,7 +168,7 @@ class FTDIDevice private constructor(
      * the bogus opcode itself. Verify functionality
      *@param Boolean true if test successful
      */
-    fun testMPSSE():Boolean {
+    fun testMPSSE(): Boolean {
         device.resetDevice()
         device.purge(Purge.RX_TX)
 
@@ -178,11 +177,11 @@ class FTDIDevice private constructor(
         var byOutputBuffer = ByteArray(100) { 0 }
         byOutputBuffer[0] = MPSSE_MCU_CMD.ENABLE_LOOPBACK.CMD
         var byInputBuffer = ByteArray(100) { 0 }
-        var dwNumBytesSent = device.write(byOutputBuffer,0,1)
+        var dwNumBytesSent = device.write(byOutputBuffer, 0, 1)
 
         //Send Bogus Command
         byOutputBuffer[0] = MPSSE_MCU_CMD.BOGUS.CMD
-        dwNumBytesSent = device.write(byOutputBuffer,0,1)
+        dwNumBytesSent = device.write(byOutputBuffer, 0, 1)
 
         var status: Triple<Int, Int, Int>
         do {
@@ -194,9 +193,10 @@ class FTDIDevice private constructor(
         val response = device.read(byInputBuffer, 0, bytesToRead)
 
         //Check if Bad command and echo command are received
-        for( dwCount in 0 until minOf(bytesToRead,byInputBuffer.size-1) ) {
-            if((byInputBuffer[dwCount]==MPSSE_MCU_CMD.BAD_CMD.CMD) &&
-                (byInputBuffer[dwCount+1] == MPSSE_MCU_CMD.BOGUS.CMD)) {
+        for (dwCount in 0 until minOf(bytesToRead, byInputBuffer.size - 1)) {
+            if ((byInputBuffer[dwCount] == MPSSE_MCU_CMD.BAD_CMD.CMD) &&
+                (byInputBuffer[dwCount + 1] == MPSSE_MCU_CMD.BOGUS.CMD)
+            ) {
                 return true
             }
         }
@@ -210,24 +210,24 @@ class FTDIDevice private constructor(
      * @param mode Bit mode
      */
     fun setBitMode(mask: Byte, mode: BitModes) {
-        scope.launch {
-            try {
-                device.setBitMode(mask, mode)
-                bitMode = mode
-                _commandResponseFlow.emit(CommandResponse(
-                    CommandType.SET_BIT_MODE,
-                    success = true,
-                    message = "Bit mode set successfully"
-                ))
-            } catch (e: Exception) {
-                _commandResponseFlow.emit(CommandResponse(
-                    CommandType.SET_BIT_MODE,
-                    success = false,
-                    message = "Setting bit mode failed: ${e.message}",
-                    error = e
-                ))
-            }
+
+        try {
+            device.setBitMode(mask, mode)
+            bitMode = mode
+            _commandResponseFlow.value = (CommandResponse(
+                CommandType.SET_BIT_MODE,
+                success = true,
+                message = "Bit mode set successfully"
+            ))
+        } catch (e: Exception) {
+            _commandResponseFlow.value = (CommandResponse(
+                CommandType.SET_BIT_MODE,
+                success = false,
+                message = "Setting bit mode failed: ${e.message}",
+                error = e
+            ))
         }
+
     }
 
     /**
@@ -235,31 +235,30 @@ class FTDIDevice private constructor(
      * @param gpio Bit mode mask
      */
     fun setGPIO(gpio: Byte) {
-        scope.launch {
-            try {
-                if(bitMode == BitModes.SYNC_BIT_BANG || bitMode == BitModes.ASYNC_BIT_BANG || bitMode == BitModes.CBUS_BIT_BANG) {
-                    val data = ByteArray(5) { 0 }
-                    data[0] = gpio
-                    device.write(data)
-                    _commandResponseFlow.emit(
+        try {
+            if (bitMode == BitModes.SYNC_BIT_BANG || bitMode == BitModes.ASYNC_BIT_BANG || bitMode == BitModes.CBUS_BIT_BANG) {
+                val data = ByteArray(5) { 0 }
+                data[0] = gpio
+                device.write(data)
+                _commandResponseFlow.value = (
                         CommandResponse(
                             CommandType.SET_GPIO,
                             success = true,
                             message = "Set GPIO command successful"
                         )
-                    )
-                } else {
-                    throw FTD2XXException(FT_STATUS.FT_IO_ERROR, "Device is not in Bit Bang Mode)")
-                }
-            } catch (e: Exception) {
-                _commandResponseFlow.emit(CommandResponse(
-                    CommandType.SET_GPIO,
-                    success = false,
-                    message = "Set GPIO command failed: ${e.message}",
-                    error = e
-                ))
+                        )
+            } else {
+                throw FTD2XXException(FT_STATUS.FT_IO_ERROR, "Device is not in Bit Bang Mode)")
             }
+        } catch (e: Exception) {
+            _commandResponseFlow.value = (CommandResponse(
+                CommandType.SET_GPIO,
+                success = false,
+                message = "Set GPIO command failed: ${e.message}",
+                error = e
+            ))
         }
+
     }
 
     /**
@@ -267,7 +266,7 @@ class FTDIDevice private constructor(
      * @return gpio Bit mode mask
      */
     fun getGPIO(): Byte {
-        if(bitMode == BitModes.SYNC_BIT_BANG || bitMode == BitModes.ASYNC_BIT_BANG || bitMode == BitModes.CBUS_BIT_BANG) {
+        if (bitMode == BitModes.SYNC_BIT_BANG || bitMode == BitModes.ASYNC_BIT_BANG || bitMode == BitModes.CBUS_BIT_BANG) {
             return device.getBitMode()
         } else {
             throw FTD2XXException(FT_STATUS.FT_IO_ERROR, "Device is not in Bit Bang Mode)")
@@ -277,11 +276,47 @@ class FTDIDevice private constructor(
     /**
      * Return instantaneous data bus value/bit values not mode
      * @return Byte bit mode
+     *
+     * WARNING this is not the actual device mode
      */
-    fun getBitMode():Byte {
+    fun getDeviceBitMode(): Byte {
         return device.getBitMode()
     }
-    
+
+    /**
+     * Return locally stored bitMode value
+     * @return Bitmode bit mode
+     *
+     * WARNING this may not match the actual device mode
+     */
+    fun getBitMode(): BitModes {
+        return bitMode
+    }
+
+    /**
+     * Get the number of bytes in the receive queue.
+     *
+     * @return Triple of (rxBytes, txBytes, eventStatus)
+     * @throws FTD2XXException If operation fails
+     */
+    fun getStatus(): Triple<Int, Int, Int> {
+        return device.getStatus()
+    }
+
+    /**
+     * Read bytes from device.
+     *
+     * @param bytes Bytes array to store read bytes
+     * @param offset Start index
+     * @param length Amount of bytes to read
+     * @return Number of bytes actually read
+     * @throws FTD2XXException If operation fails
+     */
+    fun read(bytes: ByteArray, offset: Int = 0, length: Int = bytes.size - offset): Int {
+        return device.read(bytes, offset, length)
+    }
+
+
     /**
      * Close the device.
      */
@@ -295,47 +330,45 @@ class FTDIDevice private constructor(
      * @param purge flags for purging RX,TX or both
      */
     fun purge(purge: Purge) {
-        scope.launch {
-            try {
-                device.purge(purge)
-                _commandResponseFlow.emit(CommandResponse(
-                    CommandType.PURGE,
-                    success = true,
-                    message = "Purge successful"
-                ))
-            } catch (e: Exception) {
-                _commandResponseFlow.emit(CommandResponse(
-                    CommandType.PURGE,
-                    success = false,
-                    message = "Purge failed: ${e.message}",
-                    error = e
-                ))
-            }
+        try {
+            device.purge(purge)
+            _commandResponseFlow.value = (CommandResponse(
+                CommandType.PURGE,
+                success = true,
+                message = "Purge successful"
+            ))
+        } catch (e: Exception) {
+            _commandResponseFlow.value = (CommandResponse(
+                CommandType.PURGE,
+                success = false,
+                message = "Purge failed: ${e.message}",
+                error = e
+            ))
         }
+
     }
 
     /**
      * Reset the device
      */
     fun reset() {
-        scope.launch {
-            try {
-                device.resetDevice()
-                bitMode = BitModes.RESET
-                _commandResponseFlow.emit(CommandResponse(
-                    CommandType.RESET,
-                    success = true,
-                    message = "Reset successful"
-                ))
-            } catch (e: Exception) {
-                _commandResponseFlow.emit(CommandResponse(
-                    CommandType.RESET,
-                    success = false,
-                    message = "Rest failed: ${e.message}",
-                    error = e
-                ))
-            }
+        try {
+            device.resetDevice()
+            bitMode = BitModes.RESET
+            _commandResponseFlow.value = (CommandResponse(
+                CommandType.RESET,
+                success = true,
+                message = "Reset successful"
+            ))
+        } catch (e: Exception) {
+            _commandResponseFlow.value = (CommandResponse(
+                CommandType.RESET,
+                success = false,
+                message = "Rest failed: ${e.message}",
+                error = e
+            ))
         }
+
     }
 
     /**
@@ -344,7 +377,7 @@ class FTDIDevice private constructor(
      * @return succes
      */
     fun flushbuffer(): Boolean {
-        if( bitMode == BitModes.MPSSE || bitMode == BitModes.MCU_HOST_BUS_EMULATION) {
+        if (bitMode == BitModes.MPSSE || bitMode == BitModes.MCU_HOST_BUS_EMULATION) {
             val data = ByteArray(5) { 0 }
             data[0] = MPSSE_MCU_CMD.SEND_IMMEDIATE.CMD
             device.write(data)
@@ -375,62 +408,67 @@ class FTDIDevice private constructor(
     fun isOpen(): Boolean {
         return device.isOpen()
     }
-}
 
-/**
- * Enum representing different types of commands.
- */
-enum class CommandType {
-    CONFIGURE,
-    WRITE,
-    SET_BIT_MODE,
-    SET_GPIO,
-    GET_GPIO,
-    PURGE,
-    RESET
+    fun setLatencyTimer(latency: Byte) {
+        device.setLatencyTimer(latency)
+    }
+
 }
+    /**
+     * Enum representing different types of commands.
+     */
+    enum class CommandType {
+        CONFIGURE,
+        WRITE,
+        SET_BIT_MODE,
+        SET_GPIO,
+        GET_GPIO,
+        PURGE,
+        RESET
+    }
+
 
 enum class MPSSE_MCU_CMD(val CMD: Byte) {
     //Reference FTDI AN_233_Java_D2xx_for_Android_API_User_Manual.pdf
     //Reference FTDI AN_108_Command_Processor_for_MPSSE_and_MCU_Host_Bus_Emulation_Modes.pdf
-
     //Read Bytes Falling Edge LSB First
+
     READ_BYTES_RISING_EDGE(0x2B.toByte()),
     READ_BYTES_FALLING_EDGE(0x2C.toByte()),
-
     //Read/Write GPIO
+
     SET_DATA_BITS_LOW_BYTE(0x80.toByte()),
     READ_DATA_BITS_LOW_BYTE(0x81.toByte()),
     SET_DATA_BITS_HIGH_BYTE(0x82.toByte()),
     READ_DATA_BITS_HIGH_BYTE(0x83.toByte()),
-
     //Enable/Disable TDI/TDO Loopback
+
     ENABLE_LOOPBACK(0x84.toByte()),
     DISABLE_LOOPBACK(0x85.toByte()),
-
-
     CLOCK_DIVISOR(0X86.toByte()), //Set Clock Divisor
+
+
     SEND_IMMEDIATE(0X87.toByte()), //This will make the chip flush its buffer back to the PC.
-
     WAIT_ON_IO_HIGH(0x88.toByte()),
-    WAIT_ON_IO_LOW(0x89.toByte()),
 
+    WAIT_ON_IO_LOW(0x89.toByte()),
     CMD_60MHZ_CLOCK(0x8A.toByte()), //Disables the clk divide by 5 to allow for a 60MHz master clock.
+
     CMD_12MHZ_CLOCK(0x8B.toByte()), //Enables the clk divide by 5 to allow for a 12MHz master clock.
     ENABLE_3_PHASE_CLOCK(0x8C.toByte()),//Enables 3 phase data clocking. Used by I2C interfaces to allow data on both clock edges.
     DISABLE_3_PHASE_CLOCK(0x8D.toByte()), //Disables 3 phase data clocking.
-
     READ_SHORT_ADDRESS(0x90.toByte()),
+
     READ_EXTENDED_ADDRESS(0x91.toByte()),
     WRITE_SHORT_ADDRESS(0x92.toByte()),
     WRITE_EXTENDED_ADDRESS(0x93.toByte()),
     ENABLE_ADAPTIVE_CLOCK(0x96.toByte()),
     DISABLE_ADAPTIVE_CLOCK(0x97.toByte()),
-
     BOGUS(0xAA.toByte()), //Invalid command for testing
-    BAD_CMD(0xFA.toByte()), //MPSEE response when a bad command is Sent
 
+    BAD_CMD(0xFA.toByte()), //MPSEE response when a bad command is Sent
     FTDI_BYTE_MASK_INPUTS(0x00.toByte()),
+
     FTDI_BYTE_MASK_OUTPUTS(0xFF.toByte()),
 }
 

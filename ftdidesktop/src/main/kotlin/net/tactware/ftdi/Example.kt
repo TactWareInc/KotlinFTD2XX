@@ -40,7 +40,7 @@ class Example {
                 device.setBitMode(0xFF.toByte(),BitModes.ASYNC_BIT_BANG) //0xFF for out pins as outputs
                 device.write(outPuts) //Bits are set at default interal baud rate
                 Thread.sleep(100)
-                var bitReg = device.getBitMode()
+                var bitReg = device.getDeviceBitMode()
                 if(bitReg == outPuts[0])
                     println("Bit Bang test complete")
                 else
