@@ -117,9 +117,10 @@ class FTDevice private constructor(
                 serialNumber = memoryPointerToString(serialNumberBuffer)
                 description = memoryPointerToString(descriptionBuffer)
 
-                if(serialNumberToOpen.equals(serialNumber))
+                if(serialNumberToOpen.equals(serialNumber)) {
                     deviceIndex = i
-                break
+                    break
+                }
             }
 
             if (deviceIndex == -1) {
