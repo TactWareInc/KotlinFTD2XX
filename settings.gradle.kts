@@ -1,4 +1,4 @@
-rootProject.name = "SoftModem"
+rootProject.name = "KotlinFTD2XX"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
@@ -29,5 +29,5 @@ dependencyResolutionManagement {
 }
 
 include(
-    ":ftdidesktop",
+    ":ftdidesktop", ":example"
 )
