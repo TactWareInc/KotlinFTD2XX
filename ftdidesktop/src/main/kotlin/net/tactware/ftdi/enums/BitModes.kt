@@ -12,11 +12,11 @@ enum class BitModes(val value: Byte) {
     FAST_OPTO_ISOLATED_SERIAL(0x10),
     CBUS_BIT_BANG(0x20),
     SINGLE_CHANNEL_SYNC_245_FIFO(0x40);
-    
+
     companion object {
         /**
          * Get BitMode by value.
-         * 
+         *
          * @param value The byte value to look up
          * @return The corresponding BitModes enum or null if not found
          */

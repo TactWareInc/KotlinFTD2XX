@@ -30,14 +30,14 @@ object FTDeviceExtensions {
         pollIntervalMs: Long = 10
     ): Flow<ByteArray> = flow {
         val buffer = ByteArray(bufferSize)
-        
+
         while (true) {
             val (rxBytes, _, _) = device.getStatus()
-            
+
             if (rxBytes > 0) {
                 val bytesToRead = minOf(rxBytes, bufferSize)
                 val bytesRead = device.read(buffer, 0, bytesToRead)
-                
+
                 if (bytesRead > 0) {
                     emit(buffer.copyOf(bytesRead))
                 }
@@ -46,7 +46,7 @@ object FTDeviceExtensions {
             }
         }
     }
-    
+
     /**
      * Suspend function to write data to the device.
      *
@@ -57,7 +57,7 @@ object FTDeviceExtensions {
     suspend fun writeAsync(device: FTDevice, data: ByteArray): Int = withContext(Dispatchers.IO) {
         device.write(data)
     }
-    
+
     /**
      * Suspend function to read a specific number of bytes from the device.
      * This function will wait until the requested number of bytes is available.
@@ -76,7 +76,7 @@ object FTDeviceExtensions {
         val buffer = ByteArray(length)
         var totalRead = 0
         val startTime = System.currentTimeMillis()
-        
+
         while (totalRead < length) {
             if (timeout > 0 && System.currentTimeMillis() - startTime > timeout) {
                 throw FTD2XXException(
@@ -84,9 +84,9 @@ object FTDeviceExtensions {
                     "Timeout while reading data"
                 )
             }
-            
+
             val (rxBytes, _, _) = device.getStatus()
-            
+
             if (rxBytes > 0) {
                 val bytesToRead = minOf(rxBytes, length - totalRead)
                 val bytesRead = device.read(buffer, totalRead, bytesToRead)
@@ -95,10 +95,10 @@ object FTDeviceExtensions {
                 kotlinx.coroutines.delay(10)
             }
         }
-        
+
         buffer
     }
-    
+
     /**
      * Suspend function to configure the device with common settings.
      *

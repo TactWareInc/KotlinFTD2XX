@@ -7,11 +7,11 @@ enum class DeviceStatus(val value: Int) {
     OPENED(0),
     OPEN_NOTSET(1),
     OPEN_FAILED(2);
-    
+
     companion object {
         /**
          * Get DeviceStatus by value.
-         * 
+         *
          * @param value The int value to look up
          * @return The corresponding DeviceStatus enum or null if not found
          */

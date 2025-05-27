@@ -186,7 +186,12 @@ interface FTD2XX : Library {
      * @param eventStatus Pointer to unsigned long to store event status.
      * @return FT_STATUS: FT_OK if successful, otherwise the return value is an FT error code.
      */
-    fun FT_GetStatus(ftHandle: Pointer, rxBytes: IntByReference, txBytes: IntByReference, eventStatus: IntByReference): Int
+    fun FT_GetStatus(
+        ftHandle: Pointer,
+        rxBytes: IntByReference,
+        txBytes: IntByReference,
+        eventStatus: IntByReference
+    ): Int
 
     /**
      * Set the timeouts for reads and writes.

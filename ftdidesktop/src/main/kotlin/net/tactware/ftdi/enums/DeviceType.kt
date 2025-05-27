@@ -21,11 +21,11 @@ enum class DeviceType(val value: Int) {
     FT_DEVICE_900(14),
     FT_DEVICE_930(15),
     FT_DEVICE_UMFTPD3A(16);
-    
+
     companion object {
         /**
          * Get DeviceType by value.
-         * 
+         *
          * @param value The int value to look up
          * @return The corresponding DeviceType enum or null if not found
          */

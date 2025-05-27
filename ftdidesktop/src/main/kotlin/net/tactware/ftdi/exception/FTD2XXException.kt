@@ -10,7 +10,7 @@ class FTD2XXException : Exception {
      * The FT_STATUS code associated with this exception.
      */
     val ftStatus: FT_STATUS
-    
+
     /**
      * Constructs an FTD2XXException with the specified FT_STATUS.
      *
@@ -19,7 +19,7 @@ class FTD2XXException : Exception {
     constructor(ftStatus: FT_STATUS) : super("FTD2XX Error: ${ftStatus.name}") {
         this.ftStatus = ftStatus
     }
-    
+
     /**
      * Constructs an FTD2XXException with the specified FT_STATUS and message.
      *
@@ -29,7 +29,7 @@ class FTD2XXException : Exception {
     constructor(ftStatus: FT_STATUS, message: String) : super("FTD2XX Error: ${ftStatus.name} - $message") {
         this.ftStatus = ftStatus
     }
-    
+
     /**
      * Constructs an FTD2XXException with the specified FT_STATUS, message, and cause.
      *
@@ -37,10 +37,14 @@ class FTD2XXException : Exception {
      * @param message The detail message
      * @param cause The cause of this exception
      */
-    constructor(ftStatus: FT_STATUS, message: String, cause: Throwable) : super("FTD2XX Error: ${ftStatus.name} - $message", cause) {
+    constructor(
+        ftStatus: FT_STATUS,
+        message: String,
+        cause: Throwable
+    ) : super("FTD2XX Error: ${ftStatus.name} - $message", cause) {
         this.ftStatus = ftStatus
     }
-    
+
     /**
      * Constructs an FTD2XXException with the specified FT_STATUS and cause.
      *

@@ -13,7 +13,7 @@ object ByteUtils {
     fun bytesToHex(bytes: ByteArray): String {
         return bytes.joinToString("") { "%02X".format(it) }
     }
-    
+
     /**
      * Convert a hex string to a byte array.
      *
@@ -28,7 +28,7 @@ object ByteUtils {
         }
         return result
     }
-    
+
     /**
      * Convert an int to a byte array (little endian).
      *
@@ -43,7 +43,7 @@ object ByteUtils {
             ((value shr 24) and 0xFF).toByte()
         )
     }
-    
+
     /**
      * Convert a byte array to an int (little endian).
      *
@@ -53,8 +53,8 @@ object ByteUtils {
      */
     fun bytesToInt(bytes: ByteArray, offset: Int = 0): Int {
         return (bytes[offset].toInt() and 0xFF) or
-               ((bytes[offset + 1].toInt() and 0xFF) shl 8) or
-               ((bytes[offset + 2].toInt() and 0xFF) shl 16) or
-               ((bytes[offset + 3].toInt() and 0xFF) shl 24)
+                ((bytes[offset + 1].toInt() and 0xFF) shl 8) or
+                ((bytes[offset + 2].toInt() and 0xFF) shl 16) or
+                ((bytes[offset + 3].toInt() and 0xFF) shl 24)
     }
 }

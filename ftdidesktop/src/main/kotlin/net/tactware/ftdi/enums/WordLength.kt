@@ -8,11 +8,11 @@ enum class WordLength(val value: Int) {
     BITS_7(1),
     BITS_6(2),
     BITS_5(3);
-    
+
     companion object {
         /**
          * Get WordLength by value.
-         * 
+         *
          * @param value The int value to look up
          * @return The corresponding WordLength enum or null if not found
          */

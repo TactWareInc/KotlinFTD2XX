@@ -25,18 +25,18 @@ class FTDevice private constructor(
     val serialNumber: String,
     val description: String
 ) : Closeable {
-    
+
     private val ftd2xx = FTD2XX.INSTANCE
     private var closed = false
-    
+
     // SharedFlow for device data
     private val _dataFlow = MutableSharedFlow<ByteArray>(replay = 0, extraBufferCapacity = 100)
-    
+
     /**
      * SharedFlow that emits data received from the device.
      */
     val dataFlow: SharedFlow<ByteArray> = _dataFlow.asSharedFlow()
-    
+
     companion object {
         /**
          * Open a device by index.
@@ -48,11 +48,11 @@ class FTDevice private constructor(
         @JvmStatic
         fun openByIndex(index: Int): FTDevice {
             val ftd2xx = FTD2XX.INSTANCE
-            
+
             // Get device info first
             val numDevs = IntByReference()
             ensureFTStatus(ftd2xx.FT_CreateDeviceInfoList(numDevs))
-            
+
             if (index >= numDevs.value) {
                 throw FTD2XXException(FT_STATUS.FT_DEVICE_NOT_FOUND, "Device index out of range: $index")
             }
@@ -61,25 +61,27 @@ class FTDevice private constructor(
             val type = IntByReference()
             val id = IntByReference()
             val locId = IntByReference()
-            val serialNumberBuffer = Memory(16+1)
-            val descriptionBuffer = Memory(64+1)
+            val serialNumberBuffer = Memory(16 + 1)
+            val descriptionBuffer = Memory(64 + 1)
             val ftHandleRef = PointerByReference()
 
-            ensureFTStatus(ftd2xx.FT_GetDeviceInfoDetail(
-                index, flags, type, id, locId, serialNumberBuffer, descriptionBuffer, ftHandleRef
-            ))
-            
+            ensureFTStatus(
+                ftd2xx.FT_GetDeviceInfoDetail(
+                    index, flags, type, id, locId, serialNumberBuffer, descriptionBuffer, ftHandleRef
+                )
+            )
+
             // Now open the device
             val pftHandle = PointerByReference()
             ensureFTStatus(ftd2xx.FT_Open(index, pftHandle))
-            
+
             // Get serial number and description
             val serialNumber = memoryPointerToString(serialNumberBuffer)
             val description = memoryPointerToString(descriptionBuffer)
-            
+
             return FTDevice(pftHandle.value, index, serialNumber, description)
         }
-        
+
         /**
          * Open a device by serial number.
          *
@@ -91,13 +93,13 @@ class FTDevice private constructor(
         fun openBySerialNumber(serialNumberToOpen: String): FTDevice {
             val ftd2xx = FTD2XX.INSTANCE
             val pftHandle = PointerByReference()
-            
+
             ensureFTStatus(ftd2xx.FT_OpenEx(serialNumberToOpen, 1, pftHandle))
-            
+
             // Find the device index
             val numDevs = IntByReference()
             ensureFTStatus(ftd2xx.FT_CreateDeviceInfoList(numDevs))
-            
+
             var deviceIndex = -1
             var serialNumber = String()
             var description = String()
@@ -107,30 +109,35 @@ class FTDevice private constructor(
                 val type = IntByReference()
                 val id = IntByReference()
                 val locId = IntByReference()
-                val serialNumberBuffer = Memory(16+1)
-                val descriptionBuffer = Memory(64+1)
+                val serialNumberBuffer = Memory(16 + 1)
+                val descriptionBuffer = Memory(64 + 1)
                 val ftHandleRef = PointerByReference()
-                ensureFTStatus(ftd2xx.FT_GetDeviceInfoDetail(
-                    i, flags, type, id, locId, serialNumberBuffer, descriptionBuffer, ftHandleRef
-                ))
+                ensureFTStatus(
+                    ftd2xx.FT_GetDeviceInfoDetail(
+                        i, flags, type, id, locId, serialNumberBuffer, descriptionBuffer, ftHandleRef
+                    )
+                )
 
                 serialNumber = memoryPointerToString(serialNumberBuffer)
                 description = memoryPointerToString(descriptionBuffer)
 
-                if(serialNumberToOpen.equals(serialNumber)) {
+                if (serialNumberToOpen.equals(serialNumber)) {
                     deviceIndex = i
                     break
                 }
             }
 
             if (deviceIndex == -1) {
-                throw FTD2XXException(FT_STATUS.FT_DEVICE_NOT_FOUND, "Device with serial number $serialNumber not found")
+                throw FTD2XXException(
+                    FT_STATUS.FT_DEVICE_NOT_FOUND,
+                    "Device with serial number $serialNumber not found"
+                )
             }
 
             // Get serial number and description
             return FTDevice(pftHandle.value, deviceIndex, serialNumber, description)
         }
-        
+
         /**
          * Ensure FT_STATUS is FT_OK, otherwise throw an exception.
          *
@@ -145,7 +152,7 @@ class FTDevice private constructor(
             }
         }
     }
-    
+
     /**
      * Set the baud rate for the device.
      *
@@ -155,7 +162,7 @@ class FTDevice private constructor(
     fun setBaudRate(baudRate: Int) {
         ensureFTStatus(ftd2xx.FT_SetBaudRate(ftHandle, baudRate))
     }
-    
+
     /**
      * Set the data characteristics for the device.
      *
@@ -165,14 +172,16 @@ class FTDevice private constructor(
      * @throws FTD2XXException If operation fails
      */
     fun setDataCharacteristics(wordLength: WordLength, stopBits: StopBits, parity: Parity) {
-        ensureFTStatus(ftd2xx.FT_SetDataCharacteristics(
-            ftHandle, 
-            wordLength.value.toByte(), 
-            stopBits.value.toByte(), 
-            parity.value.toByte()
-        ))
+        ensureFTStatus(
+            ftd2xx.FT_SetDataCharacteristics(
+                ftHandle,
+                wordLength.value.toByte(),
+                stopBits.value.toByte(),
+                parity.value.toByte()
+            )
+        )
     }
-    
+
     /**
      * Set the flow control for the device.
      *
@@ -184,7 +193,7 @@ class FTDevice private constructor(
     fun setFlowControl(flowControl: FlowControl, xon: Byte = 0x11, xoff: Byte = 0x13) {
         ensureFTStatus(ftd2xx.FT_SetFlowControl(ftHandle, flowControl.value, xon, xoff))
     }
-    
+
     /**
      * Set the RTS signal.
      *
@@ -193,7 +202,7 @@ class FTDevice private constructor(
     fun setRts() {
         ensureFTStatus(ftd2xx.FT_SetRts(ftHandle))
     }
-    
+
     /**
      * Clear the RTS signal.
      *
@@ -202,7 +211,7 @@ class FTDevice private constructor(
     fun clearRts() {
         ensureFTStatus(ftd2xx.FT_ClrRts(ftHandle))
     }
-    
+
     /**
      * Set the DTR signal.
      *
@@ -211,7 +220,7 @@ class FTDevice private constructor(
     fun setDtr() {
         ensureFTStatus(ftd2xx.FT_SetDtr(ftHandle))
     }
-    
+
     /**
      * Clear the DTR signal.
      *
@@ -220,7 +229,7 @@ class FTDevice private constructor(
     fun clearDtr() {
         ensureFTStatus(ftd2xx.FT_ClrDtr(ftHandle))
     }
-    
+
     /**
      * Get the modem status and line status from the device.
      *
@@ -232,7 +241,7 @@ class FTDevice private constructor(
         ensureFTStatus(ftd2xx.FT_GetModemStatus(ftHandle, modemStatus))
         return modemStatus.value
     }
-    
+
     /**
      * Get the number of bytes in the receive queue.
      *
@@ -246,7 +255,7 @@ class FTDevice private constructor(
         ensureFTStatus(ftd2xx.FT_GetStatus(ftHandle, rxBytes, txBytes, eventStatus))
         return Triple(rxBytes.value, txBytes.value, eventStatus.value)
     }
-    
+
     /**
      * Set the timeouts for reads and writes.
      *
@@ -257,7 +266,7 @@ class FTDevice private constructor(
     fun setTimeouts(readTimeout: Int, writeTimeout: Int) {
         ensureFTStatus(ftd2xx.FT_SetTimeouts(ftHandle, readTimeout, writeTimeout))
     }
-    
+
     /**
      * Purge receive and transmit buffers in the device.
      *
@@ -292,19 +301,21 @@ class FTDevice private constructor(
             val type = IntByReference()
             val id = IntByReference()
             val locId = IntByReference()
-            val serialNumberBuffer = Memory(16+1)
-            val descriptionBuffer = Memory(64+1)
+            val serialNumberBuffer = Memory(16 + 1)
+            val descriptionBuffer = Memory(64 + 1)
             val ftHandleRef = PointerByReference()
-            ensureFTStatus(ftd2xx.FT_GetDeviceInfoDetail(
-                i, flags, type, id, locId, serialNumberBuffer, descriptionBuffer, ftHandleRef
-            ))
+            ensureFTStatus(
+                ftd2xx.FT_GetDeviceInfoDetail(
+                    i, flags, type, id, locId, serialNumberBuffer, descriptionBuffer, ftHandleRef
+                )
+            )
 
-            if(deviceIndex == i) {
+            if (deviceIndex == i) {
                 //Device found, check the flags
                 //Bit 0 (least significant bit) of this number indicates if the port is open (1) or closed (0). Bit 1
                 //indicates if the device is enumerated as a high-speed USB device (2) or a full-speed USB device (0). The
                 //remaining bits (2 - 31) are reserved
-                if(flags.value and 0x01 == 0x01)
+                if (flags.value and 0x01 == 0x01)
                     return true
                 break
             }
@@ -320,7 +331,7 @@ class FTDevice private constructor(
     fun setBreakOn() {
         ensureFTStatus(ftd2xx.FT_SetBreakOn(ftHandle))
     }
-    
+
     /**
      * Reset the BREAK condition for the device.
      *
@@ -329,7 +340,7 @@ class FTDevice private constructor(
     fun setBreakOff() {
         ensureFTStatus(ftd2xx.FT_SetBreakOff(ftHandle))
     }
-    
+
     /**
      * Write bytes to device.
      *
@@ -346,7 +357,7 @@ class FTDevice private constructor(
         ensureFTStatus(ftd2xx.FT_Write(ftHandle, memory, length, wrote))
         return wrote.value
     }
-    
+
     /**
      * Read bytes from device.
      *
@@ -361,17 +372,17 @@ class FTDevice private constructor(
         val read = IntByReference()
         ensureFTStatus(ftd2xx.FT_Read(ftHandle, memory, length, read))
         memory.read(0, bytes, offset, read.value)
-        
+
         // If we read any data, emit it to the SharedFlow
         if (read.value > 0) {
             val data = ByteArray(read.value)
             memory.read(0, data, 0, read.value)
             _dataFlow.tryEmit(data)
         }
-        
+
         return read.value
     }
-    
+
     /**
      * Read a specific number of bytes from device.
      *
@@ -388,7 +399,7 @@ class FTDevice private constructor(
             buffer.copyOf(actualLength)
         }
     }
-    
+
     /**
      * Set the latency timer value.
      *
@@ -398,7 +409,7 @@ class FTDevice private constructor(
     fun setLatencyTimer(latency: Byte) {
         ensureFTStatus(ftd2xx.FT_SetLatencyTimer(ftHandle, latency))
     }
-    
+
     /**
      * Get the current value of the latency timer.
      *
@@ -410,7 +421,7 @@ class FTDevice private constructor(
         ensureFTStatus(ftd2xx.FT_GetLatencyTimer(ftHandle, latency))
         return latency.value
     }
-    
+
     /**
      * Set the bit mode for the device.
      *
@@ -421,7 +432,7 @@ class FTDevice private constructor(
     fun setBitMode(mask: Byte, mode: BitModes) {
         ensureFTStatus(ftd2xx.FT_SetBitMode(ftHandle, mask, mode.value))
     }
-    
+
     /**
      * Get the current bit mode.
      *
@@ -433,7 +444,7 @@ class FTDevice private constructor(
         ensureFTStatus(ftd2xx.FT_GetBitMode(ftHandle, mode))
         return mode.value
     }
-    
+
     /**
      * Set the USB request transfer size.
      *
@@ -444,7 +455,7 @@ class FTDevice private constructor(
     fun setUSBParameters(inTransferSize: Int, outTransferSize: Int) {
         ensureFTStatus(ftd2xx.FT_SetUSBParameters(ftHandle, inTransferSize, outTransferSize))
     }
-    
+
     /**
      * Close the device.
      *

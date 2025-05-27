@@ -9,11 +9,11 @@ enum class Parity(val value: Int) {
     EVEN(2),
     MARK(3),
     SPACE(4);
-    
+
     companion object {
         /**
          * Get Parity by value.
-         * 
+         *
          * @param value The int value to look up
          * @return The corresponding Parity enum or null if not found
          */

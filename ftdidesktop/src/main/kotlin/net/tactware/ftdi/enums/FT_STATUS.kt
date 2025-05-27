@@ -24,11 +24,11 @@ enum class FT_STATUS(val value: Int) {
     FT_NOT_SUPPORTED(17),
     FT_OTHER_ERROR(18),
     FT_DEVICE_LIST_NOT_READY(19);
-    
+
     companion object {
         /**
          * Get FT_STATUS by value.
-         * 
+         *
          * @param value The int value to look up
          * @return The corresponding FT_STATUS enum or null if not found
          */
